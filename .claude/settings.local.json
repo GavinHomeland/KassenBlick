@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"E:\\\\Documents\\\\Rainmeter\\\\Skins\\\\Kassenblick\" status)",
+      "Bash(dir:*)",
+      "Bash(for f in \"Data/Bills.csv\" \"@Resources/Scripts/KassenBlick.lua\" \"@Resources/Scripts/RefreshBills.ps1\" \"@Resources/Variables.inc\" \"Main/StatusArray.inc\" \"Main/Kassenblick.ini\" \"Data/Buckets.csv\" \"Data/KassenBlick.csv\" \"Data/FinanceData.csv\")",
+      "Bash(do)",
+      "Bash(if [ -f \"$f\" ])",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(else)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(iconv:*)",
+      "Bash(powershell -Command \"$content = [System.IO.File]::ReadAllText\\(''E:\\\\Documents\\\\Rainmeter\\\\Skins\\\\Kassenblick\\\\Main\\\\Kassenblick.ini'', [System.Text.Encoding]::Unicode\\); $content = $content.Replace\\(''ScriptFile=#CURRENTPATH#..\\\\Scripts\\\\KassenBlick.lua'', ''ScriptFile=#@#Scripts\\\\KassenBlick.lua''\\); [System.IO.File]::WriteAllText\\(''E:\\\\Documents\\\\Rainmeter\\\\Skins\\\\Kassenblick\\\\Main\\\\Kassenblick.ini'', $content, [System.Text.Encoding]::Unicode\\)\")",
+      "Bash(powershell -NoProfile -Command \"$f=''E:\\\\Documents\\\\Rainmeter\\\\Skins\\\\Kassenblick\\\\Main\\\\Kassenblick.ini''; $enc=[System.Text.Encoding]::Unicode; $content=[System.IO.File]::ReadAllText\\($f,$enc\\); $content=$content.Replace\\(''#CURRENTPATH#..\\\\Scripts\\\\KassenBlick.lua'',''#@#Scripts\\\\KassenBlick.lua''\\); [System.IO.File]::WriteAllText\\($f,$content,$enc\\); Write-Host ''Done''\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File:*)",
+      "Bash(powershell:*)"
+    ]
+  }
+}

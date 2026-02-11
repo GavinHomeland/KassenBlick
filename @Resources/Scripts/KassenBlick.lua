@@ -19,8 +19,16 @@
 -- ============================================================================
 -- CONFIGURATION
 -- ============================================================================
-local MAX_BILLS = 15  -- 5 rows x 3 columns
+local MAX_BILLS = 25  -- 5 rows x 5 columns
 local YELLOW_THRESHOLD = 5  -- days before due to turn yellow
+
+-- Header aliases: map CSV column names to internal keys
+local HEADER_ALIASES = {
+    ["Name (tooltip)"] = "Name",
+    ["Due Day"]        = "DueDay",
+    ["Days Left"]      = "DaysLeft",
+    [""]               = "ID",
+}
 
 -- Color constants (R,G,B,A)
 local COLOR = {
@@ -77,19 +85,22 @@ function ParseCSV()
             -- Parse header row to get column indices
             headers = ParseCSVLine(line)
         else
-            if lineNum > MAX_BILLS + 1 then break end
-            
             local fields = ParseCSVLine(line)
             local bill = {}
-            
+
             for i, header in ipairs(headers) do
                 -- Normalize header name (strip quotes, trim whitespace)
                 local key = header:gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
+                key = HEADER_ALIASES[key] or key
                 local val = (fields[i] or ""):gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
                 bill[key] = val
             end
-            
-            table.insert(bills, bill)
+
+            -- Skip blank rows (no Name = placeholder for future use)
+            if (bill.Name or "") ~= "" then
+                table.insert(bills, bill)
+            end
+            if #bills >= MAX_BILLS then break end
         end
     end
     
@@ -97,7 +108,7 @@ function ParseCSV()
     
     -- Pad to MAX_BILLS with empty entries
     while #bills < MAX_BILLS do
-        table.insert(bills, { StatusID = "", Name = "", ID = "", Status = "",
+        table.insert(bills, { StatusID = "", Name = "", Status = "",
                               Account = "", DueDay = "", Autopay = "", Amount = "",
                               Category = "", URL = "" })
     end
@@ -201,9 +212,8 @@ function GetBillColors(bill)
     local strokeColor = COLOR.WHITE
     
     -- Empty slot check
-    local id = bill.ID or ""
     local name = bill.Name or ""
-    if id == "" and name == "" then
+    if name == "" then
         return COLOR.BLACK, COLOR.WHITE
     end
     
@@ -254,8 +264,8 @@ end
 function ApplyStatuses()
     for i = 1, MAX_BILLS do
         local bill = bills[i]
-        local row = math.ceil(i / 3)
-        local col = ((i - 1) % 3) + 1
+        local row = math.ceil(i / 5)
+        local col = ((i - 1) % 5) + 1
         local suffix = "R" .. row .. "_C" .. col
         
         local fillColor, strokeColor = GetBillColors(bill)
@@ -272,6 +282,9 @@ function ApplyStatuses()
         -- Update the ID text meter
         local idMeter = "MeterID_" .. suffix
         local idText = (bill.ID or "")
+        if idText == "" and (bill.Name or "") ~= "" then
+            idText = bill.Name:upper():sub(1, 3)
+        end
         if idText == "" then idText = "---" end
         
         SKIN:Bang('!SetOption', idMeter, 'Text', idText)

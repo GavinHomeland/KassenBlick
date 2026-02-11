@@ -29,7 +29,7 @@ function Test-BillsCSV {
     }
 
     $header = (Get-Content $BillsCSV -TotalCount 1).Trim()
-    $expectedCols = @("StatusID", "Name", "ID", "Status", "Account", "DueDay", "Autopay", "Amount", "Category")
+    $expectedCols = @("StatusID", "Name", "Status", "Account", "Due Day", "Autopay", "Amount", "Category")
 
     $valid = $true
     foreach ($col in $expectedCols) {
