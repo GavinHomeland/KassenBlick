@@ -15,7 +15,9 @@
       "Bash(powershell -Command \"$content = [System.IO.File]::ReadAllText\\(''E:\\\\Documents\\\\Rainmeter\\\\Skins\\\\Kassenblick\\\\Main\\\\Kassenblick.ini'', [System.Text.Encoding]::Unicode\\); $content = $content.Replace\\(''ScriptFile=#CURRENTPATH#..\\\\Scripts\\\\KassenBlick.lua'', ''ScriptFile=#@#Scripts\\\\KassenBlick.lua''\\); [System.IO.File]::WriteAllText\\(''E:\\\\Documents\\\\Rainmeter\\\\Skins\\\\Kassenblick\\\\Main\\\\Kassenblick.ini'', $content, [System.Text.Encoding]::Unicode\\)\")",
       "Bash(powershell -NoProfile -Command \"$f=''E:\\\\Documents\\\\Rainmeter\\\\Skins\\\\Kassenblick\\\\Main\\\\Kassenblick.ini''; $enc=[System.Text.Encoding]::Unicode; $content=[System.IO.File]::ReadAllText\\($f,$enc\\); $content=$content.Replace\\(''#CURRENTPATH#..\\\\Scripts\\\\KassenBlick.lua'',''#@#Scripts\\\\KassenBlick.lua''\\); [System.IO.File]::WriteAllText\\($f,$content,$enc\\); Write-Host ''Done''\")",
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "WebSearch"
     ]
-  }
+  },
+  "outputStyle": "default"
 }
