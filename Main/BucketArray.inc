@@ -3,6 +3,16 @@
 ; Debt Bucket Pie Display
 ; 1x3 Pie Chart Array
 ; ====================
+;
+; PIE CHART FIX:
+; Rainmeter Shape meters can't parse dynamically-generated inline path data
+; from Lua via !SetOption. The fix uses named path definitions (GreenPath_N)
+; set as separate meter options, then referenced by Shape2 via "Path GreenPath_N".
+; This lets Lua build arc geometry at runtime:
+;   Shape  = red background circle (full debt)
+;   Shape2 = green arc overlay (amount paid, via named path)
+;   Shape3 = yellow stroke ring (interest rate, thickness = IR/3 px)
+; ====================
 
 ; ====================
 ; PIE 1

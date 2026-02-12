@@ -332,14 +332,17 @@ function ParseBuckets()
             local code = (fields[2] or ""):gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
             local baselineRaw = (fields[3] or ""):gsub('"', ''):gsub('[%$,]', ''):gsub('^%s+', ''):gsub('%s+$', '')
             local currentRaw = (fields[4] or ""):gsub('"', ''):gsub('[%$,]', ''):gsub('^%s+', ''):gsub('%s+$', '')
+            local irRaw = (fields[5] or ""):gsub('"', ''):gsub('%%', ''):gsub('^%s+', ''):gsub('%s+$', '')
             local baseline = tonumber(baselineRaw) or 0
             local current = tonumber(currentRaw) or 0
+            local ir = tonumber(irRaw) or 0
             if baseline > 0 then
                 table.insert(buckets, {
                     Source = source,
                     Code = code ~= "" and code or source:upper():sub(1, 3),
                     Baseline = baseline,
-                    Current = current
+                    Current = current,
+                    IR = ir
                 })
             end
         end
@@ -386,10 +389,14 @@ function ApplyBuckets()
         local cx, cy = 50, 50
         local redColor = greenPct < 0 and "180,0,0,180" or "255,0,0,180"
 
+        local ir = bucket.IR or 0
+        local strokeW = ir / 3
+
         if r <= 0 then
             -- Hide empty slot
             SKIN:Bang('!SetOption', pieMeter, 'Shape', 'Ellipse 50,50,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0')
             SKIN:Bang('!SetOption', pieMeter, 'Shape2', '')
+            SKIN:Bang('!SetOption', pieMeter, 'Shape3', '')
             SKIN:Bang('!SetOption', pieMeter, 'ToolTipText', '')
         else
             -- Red background circle
@@ -397,6 +404,9 @@ function ApplyBuckets()
                 cx, cy, r, r, redColor)
 
             SKIN:Bang('!SetOption', pieMeter, 'Shape', redCircle)
+
+            -- Track next available shape slot (Shape is always the red circle)
+            local nextShape = 2
 
             -- Green arc overlay (if greenPct > 0)
             if greenPct > 0 then
@@ -420,8 +430,22 @@ function ApplyBuckets()
                 local greenArc = "Path " .. pathName .. " | Fill Color 0,255,0,180 | StrokeWidth 0"
 
                 SKIN:Bang('!SetOption', pieMeter, 'Shape2', greenArc)
-            else
-                SKIN:Bang('!SetOption', pieMeter, 'Shape2', '')
+                nextShape = 3
+            end
+
+            -- Yellow border representing interest rate (thickness = IR/3 px)
+            -- Placed in the next sequential shape slot to avoid gaps
+            if strokeW > 0 then
+                local borderR = r + strokeW / 2
+                local borderRing = string.format("Ellipse %d,%d,%.1f,%.1f | Fill Color 0,0,0,0 | StrokeWidth %.1f | Stroke Color 255,255,0,200",
+                    cx, cy, borderR, borderR, strokeW)
+                SKIN:Bang('!SetOption', pieMeter, 'Shape' .. nextShape, borderRing)
+                nextShape = nextShape + 1
+            end
+
+            -- Clear any leftover shape slots
+            for s = nextShape, 3 do
+                SKIN:Bang('!SetOption', pieMeter, 'Shape' .. s, '')
             end
 
             local tip = ""
