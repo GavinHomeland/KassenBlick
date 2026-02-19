@@ -1,0 +1,8 @@
+Source,,Baseline,Current Balance,Due Date,Interest Rate,,Minimum Payment,URL,,
+Example Card,EX1,"$15,000.00","$14,200.00",,18.00%,d,$300.00,,,Illustrative data only
+Example Loan,EX2,"$8,000.00","$7,600.00",,7.50%,d,$150.00,,,Illustrative data only
+Example Line,EX3,"$3,000.00","$2,700.00",,,d,$100.00,,,Illustrative data only
+,,,,,,,,,,
+Example Goal 1,EG1,"$2,000.00",$750.00,12/31/26,,s,,,,Vacation fund — illustrative data only
+Example Goal 2,EG2,"$1,500.00",$400.00,06/30/26,,s,,,,Emergency fund — illustrative data only
+,,,,,,,,,,

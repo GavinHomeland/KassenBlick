@@ -6,11 +6,14 @@
 -- ====================
 -- CONFIGURATION
 -- ====================
-local MAX_BILLS = 25
-local COLUMNS = 5
-local YELLOW_THRESHOLD = 5
-local DOT_RADIUS = 6
-local MAX_BUCKETS = 3
+local MAX_BILLS    = 25
+local COLUMNS      = 5
+local YELLOW_THRESHOLD = 7
+local DOT_RADIUS   = 6
+local MAX_BUCKETS  = 3
+local MAX_SAVINGS  = 3
+local SAVE_W       = 100
+local SAVE_LABEL_GAP = 5
 
 -- ====================
 -- HEADER ALIASES
@@ -19,6 +22,7 @@ local HEADER_ALIASES = {
     ["Name (tooltip)"] = "Name",
     ["Due Day"]        = "DueDay",
     ["Days Left"]      = "DaysLeft",
+    ["APay"]           = "Autopay",
     [""]               = "ID",
 }
 
@@ -38,10 +42,11 @@ local COLOR = {
 -- GLOBALS
 -- ====================
 local bills = {}
-local buckets = {}
-local lastBillsContent = nil
+local d_buckets = {}
+local s_buckets = {}
+local lastBillsContent   = nil
 local lastBucketsContent = nil
-local csvPath = ""
+local csvPath     = ""
 local bucketsPath = ""
 
 -- ====================
@@ -61,6 +66,28 @@ local function FormatNumber(n)
     local int, dec = s:match("^(-?%d+)(%.%d+)$")
     int = int:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
     return int .. dec
+end
+
+-- Parse "MM/DD/YY" or "MM/DD/YYYY" into a table {year, month, day}
+local function ParseDueDate(str)
+    if not str or str == "" then return nil end
+    local m, d, y = str:match("^(%d+)/(%d+)/(%d+)$")
+    if not m then return nil end
+    m, d, y = tonumber(m), tonumber(d), tonumber(y)
+    if not m or not d or not y then return nil end
+    if y < 100 then y = 2000 + y end
+    return { year = y, month = m, day = d }
+end
+
+-- Fraction of time elapsed from Jan 1 of the due year to the due date.
+-- Returns a value clamped to [0, 1].
+local function CalcTimeFraction(due)
+    local startT = os.time({ year = due.year, month = 1,         day = 1,       hour = 0, min = 0, sec = 0 })
+    local endT   = os.time({ year = due.year, month = due.month, day = due.day, hour = 0, min = 0, sec = 0 })
+    local nowT   = os.time()
+    local total  = endT - startT
+    if total <= 0 then return 1 end
+    return math.max(0, math.min(1, (nowT - startT) / total))
 end
 
 function LogError(msg)
@@ -158,9 +185,21 @@ function ParseBills()
 
         if lineNum == 1 then
             local rawHeaders = ParseCSVLine(line)
-            for _, h in ipairs(rawHeaders) do
+            local blankSeen  = false
+            for colIdx, h in ipairs(rawHeaders) do
                 local cleaned = h:gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
-                local normalized = HEADER_ALIASES[cleaned] or cleaned
+                local normalized
+                if cleaned == "" then
+                    -- Only the first blank header is the ID column; subsequent blanks are ignored
+                    if not blankSeen then
+                        normalized = "ID"
+                        blankSeen  = true
+                    else
+                        normalized = "_col" .. colIdx
+                    end
+                else
+                    normalized = HEADER_ALIASES[cleaned] or cleaned
+                end
                 table.insert(headers, normalized)
             end
         else
@@ -179,14 +218,13 @@ function ParseBills()
 
             if bill.Name and bill.Name ~= "" then
                 bill.StatusID = bill.StatusID or ""
-                bill.ID = bill.ID or ""
-                bill.Status = bill.Status or ""
-                bill.Account = bill.Account or ""
-                bill.DueDay = bill.DueDay or ""
-                bill.Autopay = bill.Autopay or ""
-                bill.Amount = bill.Amount or ""
+                bill.ID       = bill.ID       or ""
+                bill.Status   = bill.Status   or ""
+                bill.Account  = bill.Account  or ""
+                bill.DueDay   = bill.DueDay   or ""
+                bill.Autopay  = bill.Autopay  or ""
+                bill.Amount   = bill.Amount   or ""
                 bill.Category = bill.Category or ""
-                bill.URL = bill.URL or ""
 
                 table.insert(bills, bill)
             end
@@ -197,15 +235,8 @@ function ParseBills()
 
     while #bills < MAX_BILLS do
         table.insert(bills, {
-            StatusID = "",
-            Name = "",
-            Status = "",
-            Account = "",
-            DueDay = "",
-            Autopay = "",
-            Amount = "",
-            Category = "",
-            URL = ""
+            StatusID = "", Name = "", Status = "", Account = "",
+            DueDay = "", Autopay = "", Amount = "", Category = ""
         })
     end
 end
@@ -215,7 +246,7 @@ end
 -- ====================
 
 function GetBillColors(bill)
-    local fillColor = COLOR.GREY
+    local fillColor   = COLOR.GREY
     local strokeColor = COLOR.WHITE
 
     if bill.Name == "" then
@@ -258,16 +289,17 @@ end
 function ApplyStatuses()
     for i = 1, MAX_BILLS do
         local bill = bills[i]
-        local row = math.ceil(i / COLUMNS)
-        local col = ((i - 1) % COLUMNS) + 1
+        local row  = math.ceil(i / COLUMNS)
+        local col  = ((i - 1) % COLUMNS) + 1
         local suffix = "R" .. row .. "_C" .. col
 
         local fillColor, strokeColor = GetBillColors(bill)
 
         local dotMeter = "MeterDot_" .. suffix
-        local idMeter = "MeterID_" .. suffix
+        local idMeter  = "MeterID_"  .. suffix
 
-        local shape = string.format("Ellipse %d,%d,%d,%d | Fill Color %s | StrokeWidth 1 | Stroke Color %s",
+        local shape = string.format(
+            "Ellipse %d,%d,%d,%d | Fill Color %s | StrokeWidth 1 | Stroke Color %s",
             DOT_RADIUS, DOT_RADIUS, DOT_RADIUS, DOT_RADIUS, fillColor, strokeColor)
 
         SKIN:Bang('!SetOption', dotMeter, 'Shape', shape)
@@ -305,7 +337,7 @@ function ApplyStatuses()
         end
 
         SKIN:Bang('!SetOption', dotMeter, 'ToolTipText', tooltip)
-        SKIN:Bang('!SetOption', idMeter, 'ToolTipText', tooltip)
+        SKIN:Bang('!SetOption', idMeter,  'ToolTipText', tooltip)
     end
 
     SKIN:Bang('!Redraw')
@@ -316,7 +348,9 @@ end
 -- ====================
 
 function ParseBuckets()
-    buckets = {}
+    d_buckets = {}
+    s_buckets = {}
+
     local content = ReadFileToString(bucketsPath)
     if not content then
         LogError("Cannot open Buckets.csv at: " .. tostring(bucketsPath))
@@ -324,26 +358,38 @@ function ParseBuckets()
     end
 
     for line in content:gmatch("[^\r\n]+") do
-        if #buckets >= MAX_BUCKETS then break end
-        local fields = ParseCSVLine(line)
-        local source = (fields[1] or ""):gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
-        -- Skip header lines, continuation lines, and empty rows
+        if #d_buckets >= MAX_BUCKETS and #s_buckets >= MAX_SAVINGS then break end
+
+        local fields  = ParseCSVLine(line)
+        local source  = (fields[1] or ""):gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
+
+        -- Skip header, empty rows, and continuation lines starting with "("
         if source ~= "" and source ~= "Source" and not source:match("^%(") then
-            local code = (fields[2] or ""):gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
+            local code        = (fields[2] or ""):gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
             local baselineRaw = (fields[3] or ""):gsub('"', ''):gsub('[%$,]', ''):gsub('^%s+', ''):gsub('%s+$', '')
-            local currentRaw = (fields[4] or ""):gsub('"', ''):gsub('[%$,]', ''):gsub('^%s+', ''):gsub('%s+$', '')
-            local irRaw = (fields[5] or ""):gsub('"', ''):gsub('%%', ''):gsub('^%s+', ''):gsub('%s+$', '')
+            local currentRaw  = (fields[4] or ""):gsub('"', ''):gsub('[%$,]', ''):gsub('^%s+', ''):gsub('%s+$', '')
+            local dueDateStr  = (fields[5] or ""):gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', '')
+            local irRaw       = (fields[6] or ""):gsub('"', ''):gsub('%%', ''):gsub('^%s+', ''):gsub('%s+$', '')
+            local typeVal     = (fields[7] or ""):gsub('"', ''):gsub('^%s+', ''):gsub('%s+$', ''):lower()
+
             local baseline = tonumber(baselineRaw) or 0
-            local current = tonumber(currentRaw) or 0
-            local ir = tonumber(irRaw) or 0
+            local current  = tonumber(currentRaw)  or 0
+            local ir       = tonumber(irRaw)        or 0
+
             if baseline > 0 then
-                table.insert(buckets, {
-                    Source = source,
-                    Code = code ~= "" and code or source:upper():sub(1, 3),
+                local entry = {
+                    Source   = source,
+                    Code     = code ~= "" and code or source:upper():sub(1, 3),
                     Baseline = baseline,
-                    Current = current,
-                    IR = ir
-                })
+                    Current  = current,
+                    IR       = ir,
+                    DueDate  = dueDateStr
+                }
+                if typeVal == "d" and #d_buckets < MAX_BUCKETS then
+                    table.insert(d_buckets, entry)
+                elseif typeVal == "s" and #s_buckets < MAX_SAVINGS then
+                    table.insert(s_buckets, entry)
+                end
             end
         end
     end
@@ -353,15 +399,15 @@ end
 -- PIE CHART UTILITIES
 -- ====================
 
--- No BuildPieShapes needed - using Roundline meters directly
+-- No BuildPieShapes needed - using named path definitions directly
 
 -- ====================
--- APPLY BUCKETS
+-- APPLY BUCKETS (debt pies — unchanged)
 -- ====================
 
 function ApplyBuckets()
     local maxBaseline = 0
-    for _, b in ipairs(buckets) do
+    for _, b in ipairs(d_buckets) do
         if b.Baseline > maxBaseline then maxBaseline = b.Baseline end
     end
 
@@ -372,8 +418,8 @@ function ApplyBuckets()
     end
 
     for i = 1, MAX_BUCKETS do
-        local bucket = buckets[i] or { Source = "", Baseline = 0, Current = 0, Code = "" }
-        local pieMeter = "MeterPie_" .. i
+        local bucket   = d_buckets[i] or { Source = "", Baseline = 0, Current = 0, Code = "" }
+        local pieMeter = "MeterPie_"       .. i
         local labelMeter = "MeterBucketLabel_" .. i
 
         local greenPct = 0
@@ -386,32 +432,29 @@ function ApplyBuckets()
             r = math.max(15, math.floor(50 * (bucket.Baseline / maxBaseline)))
         end
 
-        local cx, cy = 50, 50
+        local cx, cy   = 50, 50
         local redColor = greenPct < 0 and "180,0,0,180" or "255,0,0,180"
 
-        local ir = bucket.IR or 0
+        local ir     = bucket.IR or 0
         local strokeW = ir / 3
 
         if r <= 0 then
-            -- Hide empty slot
-            SKIN:Bang('!SetOption', pieMeter, 'Shape', 'Ellipse 50,50,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0')
+            SKIN:Bang('!SetOption', pieMeter, 'Shape',  'Ellipse 50,50,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0')
             SKIN:Bang('!SetOption', pieMeter, 'Shape2', '')
             SKIN:Bang('!SetOption', pieMeter, 'Shape3', '')
             SKIN:Bang('!SetOption', pieMeter, 'ToolTipText', '')
         else
-            -- Red background circle
-            local redCircle = string.format("Ellipse %d,%d,%d,%d | Fill Color %s | StrokeWidth 0",
+            local redCircle = string.format(
+                "Ellipse %d,%d,%d,%d | Fill Color %s | StrokeWidth 0",
                 cx, cy, r, r, redColor)
 
             SKIN:Bang('!SetOption', pieMeter, 'Shape', redCircle)
 
-            -- Track next available shape slot (Shape is always the red circle)
             local nextShape = 2
 
-            -- Green arc overlay (if greenPct > 0)
             if greenPct > 0 then
                 local displayPct = greenPct
-                if displayPct < 3 then displayPct = 3 end
+                if displayPct < 3   then displayPct = 3   end
                 if displayPct > 100 then displayPct = 100 end
 
                 local angleRad = (displayPct / 100) * 2 * math.pi
@@ -421,29 +464,26 @@ function ApplyBuckets()
                 local ey = cy - r * math.cos(angleRad)
                 local largeArc = displayPct > 50 and 1 or 0
 
-                -- Named path approach with unique name per bucket
                 local pathName = "GreenPath_" .. i
-                local pathDef = string.format("%.0f,%.0f | LineTo %.0f,%.0f | ArcTo %.0f,%.0f,%.0f,%.0f,0,%d,0 | LineTo %.0f,%.0f",
+                local pathDef  = string.format(
+                    "%.0f,%.0f | LineTo %.0f,%.0f | ArcTo %.0f,%.0f,%.0f,%.0f,0,%d,0 | LineTo %.0f,%.0f",
                     cx, cy, sx, sy, ex, ey, r, r, largeArc, cx, cy)
 
                 SKIN:Bang('!SetOption', pieMeter, pathName, pathDef)
                 local greenArc = "Path " .. pathName .. " | Fill Color 0,255,0,180 | StrokeWidth 0"
-
                 SKIN:Bang('!SetOption', pieMeter, 'Shape2', greenArc)
                 nextShape = 3
             end
 
-            -- Yellow border representing interest rate (thickness = IR/3 px)
-            -- Placed in the next sequential shape slot to avoid gaps
             if strokeW > 0 then
-                local borderR = r + strokeW / 2
-                local borderRing = string.format("Ellipse %d,%d,%.1f,%.1f | Fill Color 0,0,0,0 | StrokeWidth %.1f | Stroke Color 255,255,0,200",
+                local borderR    = r + strokeW / 2
+                local borderRing = string.format(
+                    "Ellipse %d,%d,%.1f,%.1f | Fill Color 0,0,0,0 | StrokeWidth %.1f | Stroke Color 255,255,0,200",
                     cx, cy, borderR, borderR, strokeW)
                 SKIN:Bang('!SetOption', pieMeter, 'Shape' .. nextShape, borderRing)
                 nextShape = nextShape + 1
             end
 
-            -- Clear any leftover shape slots
             for s = nextShape, 3 do
                 SKIN:Bang('!SetOption', pieMeter, 'Shape' .. s, '')
             end
@@ -451,7 +491,8 @@ function ApplyBuckets()
             local tip = ""
             if bucket.Source ~= "" and bucket.Baseline > 0 then
                 local paid = math.max(0, bucket.Baseline - bucket.Current)
-                tip = string.format("%s | Baseline: $%s | Current: $%s | Paid: $%s (%.0f%%)",
+                tip = string.format(
+                    "%s | Baseline: $%s | Current: $%s | Paid: $%s (%.0f%%)",
                     bucket.Source,
                     FormatNumber(bucket.Baseline),
                     FormatNumber(bucket.Current),
@@ -468,22 +509,164 @@ function ApplyBuckets()
 end
 
 -- ====================
+-- APPLY SAVINGS (squares, fill from bottom)
+-- ====================
+
+function ApplySavings()
+    local saveTopY = tonumber(SKIN:GetVariable("SaveTopY")) or 365
+
+    -- Reference scale from d-buckets: pie diameter = 100px represents maxBaseline
+    local maxDBaseline = 0
+    for _, b in ipairs(d_buckets) do
+        if b.Baseline > maxDBaseline then maxDBaseline = b.Baseline end
+    end
+    if maxDBaseline == 0 then maxDBaseline = 20000 end
+
+    -- s-buckets use 10x the px-per-dollar of d-buckets
+    local pxPerDollarS = (100 / maxDBaseline) * 10
+
+    -- Pass 1: compute each square height and find the tallest
+    local squareHeights = {}
+    local maxSquareH    = 0
+    for i = 1, MAX_SAVINGS do
+        local sb = s_buckets[i] or { Baseline = 0 }
+        if sb.Baseline > 0 then
+            local sqH = math.max(20, math.floor(sb.Baseline * pxPerDollarS))
+            squareHeights[i] = sqH
+            if sqH > maxSquareH then maxSquareH = sqH end
+        else
+            squareHeights[i] = 0
+        end
+    end
+
+    -- All labels share one Y: just below the tallest square
+    local labelY = saveTopY + maxSquareH + SAVE_LABEL_GAP
+
+    -- Pass 2: apply with bottom-justification
+    for i = 1, MAX_SAVINGS do
+        local sb         = s_buckets[i] or { Source = "", Baseline = 0, Current = 0, Code = "" }
+        local sqMeter    = "MeterSave_"      .. i
+        local labelMeter = "MeterSaveLabel_" .. i
+        local sqH        = squareHeights[i]
+
+        if sqH <= 0 then
+            -- Hide empty slot
+            SKIN:Bang('!SetOption', sqMeter, 'Y',      tostring(saveTopY))
+            SKIN:Bang('!SetOption', sqMeter, 'H',      '1')
+            SKIN:Bang('!SetOption', sqMeter, 'Shape',  'Rectangle 0,0,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0')
+            SKIN:Bang('!SetOption', sqMeter, 'Shape2', '')
+            SKIN:Bang('!SetOption', sqMeter, 'Shape3', '')
+            SKIN:Bang('!SetOption', sqMeter, 'ToolTipText', '')
+            SKIN:Bang('!SetOption', labelMeter, 'Text', '')
+        else
+            -- Bottom-justify: offset Y so all squares share the same bottom edge
+            local meterY = saveTopY + (maxSquareH - sqH)
+            SKIN:Bang('!SetOption', sqMeter, 'Y', tostring(meterY))
+            SKIN:Bang('!SetOption', sqMeter, 'H', tostring(sqH))
+
+            -- Background: grey outline, full height = savings goal
+            local bgShape = string.format(
+                'Rectangle 0,0,%d,%d | Fill Color 40,40,50,200 | StrokeWidth 1 | Stroke Color 220,220,220,255',
+                SAVE_W, sqH)
+            SKIN:Bang('!SetOption', sqMeter, 'Shape', bgShape)
+
+            -- Savings progress
+            local saved = math.max(0, math.min(sb.Current, sb.Baseline))
+            local fillH = math.floor(saved / sb.Baseline * sqH)
+
+            -- Due-date pace: parse due date and compute time-elapsed fraction
+            local timeFrac = nil
+            local daysLeft = nil
+            if sb.DueDate and sb.DueDate ~= "" then
+                local due = ParseDueDate(sb.DueDate)
+                if due then
+                    timeFrac = CalcTimeFraction(due)
+                    local dueT = os.time({ year = due.year, month = due.month, day = due.day,
+                                           hour = 0, min = 0, sec = 0 })
+                    daysLeft = math.ceil((dueT - os.time()) / 86400)
+                end
+            end
+
+            if timeFrac then
+                -- Shape2 = orange time-elapsed bar (the "pace" target)
+                local timeH = math.floor(timeFrac * sqH)
+                if timeH > 0 then
+                    SKIN:Bang('!SetOption', sqMeter, 'Shape2', string.format(
+                        'Rectangle 1,%d,%d,%d | Fill Color 255,140,40,190 | StrokeWidth 0',
+                        sqH - timeH, SAVE_W - 2, timeH))
+                else
+                    SKIN:Bang('!SetOption', sqMeter, 'Shape2', '')
+                end
+                -- Shape3 = green savings bar (on top, covers orange when ahead)
+                if fillH > 0 then
+                    SKIN:Bang('!SetOption', sqMeter, 'Shape3', string.format(
+                        'Rectangle 1,%d,%d,%d | Fill Color %s | StrokeWidth 0',
+                        sqH - fillH, SAVE_W - 2, fillH, COLOR.GREEN))
+                else
+                    SKIN:Bang('!SetOption', sqMeter, 'Shape3', '')
+                end
+            else
+                -- No due date: just green savings bar, no pace indicator
+                if fillH > 0 then
+                    SKIN:Bang('!SetOption', sqMeter, 'Shape2', string.format(
+                        'Rectangle 1,%d,%d,%d | Fill Color %s | StrokeWidth 0',
+                        sqH - fillH, SAVE_W - 2, fillH, COLOR.GREEN))
+                else
+                    SKIN:Bang('!SetOption', sqMeter, 'Shape2', '')
+                end
+                SKIN:Bang('!SetOption', sqMeter, 'Shape3', '')
+            end
+
+            -- Labels share one Y line below the tallest square
+            SKIN:Bang('!SetOption', labelMeter, 'Y',    tostring(labelY))
+            SKIN:Bang('!SetOption', labelMeter, 'Text', sb.Code or "")
+
+            -- Tooltip
+            local pct = sb.Current / sb.Baseline * 100
+            local tip = string.format(
+                "%s | Goal: $%s | Saved: $%s (%.1f%%)",
+                sb.Source,
+                FormatNumber(sb.Baseline),
+                FormatNumber(math.max(0, sb.Current)),
+                pct)
+            if daysLeft then
+                local needed = math.max(0, sb.Baseline - sb.Current)
+                tip = tip .. string.format(" | %dd left, $%s to go",
+                    daysLeft, FormatNumber(needed))
+            end
+            SKIN:Bang('!SetOption', sqMeter, 'ToolTipText', tip)
+        end
+    end
+
+    SKIN:Bang('!Redraw')
+end
+
+-- ====================
 -- INITIALIZE
 -- ====================
 
 function Initialize()
-    csvPath = SKIN:GetVariable("BillsCSV", "..\\Data\\Bills.csv")
-    csvPath = SKIN:MakePathAbsolute(csvPath)
+    local function resolveCSV(primary, fallback)
+        local abs = SKIN:MakePathAbsolute(primary)
+        local f   = io.open(abs, "r")
+        if f then f:close() return abs end
+        return SKIN:MakePathAbsolute(fallback)
+    end
 
-    bucketsPath = SKIN:GetVariable("BucketsCSV", "..\\Data\\Buckets.csv")
-    bucketsPath = SKIN:MakePathAbsolute(bucketsPath)
+    csvPath = resolveCSV(
+        SKIN:GetVariable("BillsCSV",     "..\\Data\\Bills.csv"),
+        SKIN:GetVariable("TempBillsCSV", "..\\tempdata\\Bills.csv")
+    )
+    bucketsPath = resolveCSV(
+        SKIN:GetVariable("BucketsCSV",     "..\\Data\\Buckets.csv"),
+        SKIN:GetVariable("TempBucketsCSV", "..\\tempdata\\Buckets.csv")
+    )
 
     ParseBills()
     ParseBuckets()
-
-    -- Apply initial state to meters
     ApplyStatuses()
     ApplyBuckets()
+    ApplySavings()
 end
 
 -- ====================
@@ -503,6 +686,7 @@ function Update()
         lastBucketsContent = bucketsContent
         ParseBuckets()
         ApplyBuckets()
+        ApplySavings()
     end
 
     return 0

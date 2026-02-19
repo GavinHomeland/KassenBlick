@@ -3,6 +3,7 @@
 ; SKIN DIMENSIONS
 ; ====================
 SkinWidth=450
+SkinHeight=530
 Pad=10
 ContentWidth=(#SkinWidth# - (#Pad# * 2))
 SkinVersion=2.0
@@ -27,6 +28,8 @@ FontMono=JetBrains Mono
 ; ====================
 BillsCSV=..\Data\Bills.csv
 BucketsCSV=..\Data\Buckets.csv
+TempBillsCSV=..\tempdata\Bills.csv
+TempBucketsCSV=..\tempdata\Buckets.csv
 
 ; ====================
 ; GRID POSITIONING
@@ -46,3 +49,9 @@ DotToTextGap=17
 ; ====================
 BucketTopY=225
 BucketLabelY=330
+
+; ====================
+; SAVINGS SQUARE POSITIONING
+; ====================
+SaveTopY=385
+SaveLabelY=495
