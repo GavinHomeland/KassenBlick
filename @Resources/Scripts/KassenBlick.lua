@@ -433,7 +433,8 @@ function ApplyBuckets()
         end
 
         local cx, cy   = 50, 50
-        local redColor = greenPct < 0 and "180,0,0,180" or "255,0,0,180"
+        -- Negative net progress (Current > Baseline): black bg; positive: red bg
+        local bgColor = greenPct < 0 and "0,0,0,255" or "255,0,0,180"
 
         local ir     = bucket.IR or 0
         local strokeW = ir / 3
@@ -444,11 +445,11 @@ function ApplyBuckets()
             SKIN:Bang('!SetOption', pieMeter, 'Shape3', '')
             SKIN:Bang('!SetOption', pieMeter, 'ToolTipText', '')
         else
-            local redCircle = string.format(
+            local bgCircle = string.format(
                 "Ellipse %d,%d,%d,%d | Fill Color %s | StrokeWidth 0",
-                cx, cy, r, r, redColor)
+                cx, cy, r, r, bgColor)
 
-            SKIN:Bang('!SetOption', pieMeter, 'Shape', redCircle)
+            SKIN:Bang('!SetOption', pieMeter, 'Shape', bgCircle)
 
             local nextShape = 2
 
@@ -472,6 +473,27 @@ function ApplyBuckets()
                 SKIN:Bang('!SetOption', pieMeter, pathName, pathDef)
                 local greenArc = "Path " .. pathName .. " | Fill Color 0,255,0,180 | StrokeWidth 0"
                 SKIN:Bang('!SetOption', pieMeter, 'Shape2', greenArc)
+                nextShape = 3
+            elseif greenPct < 0 then
+                -- Negative: bright red arc showing how far over baseline (the delta)
+                local displayPct = math.min(math.abs(greenPct), 100)
+                if displayPct < 3 then displayPct = 3 end
+
+                local angleRad = (displayPct / 100) * 2 * math.pi
+                local sx = cx
+                local sy = cy - r
+                local ex = cx + r * math.sin(angleRad)
+                local ey = cy - r * math.cos(angleRad)
+                local largeArc = displayPct > 50 and 1 or 0
+
+                local pathName = "GreenPath_" .. i
+                local pathDef  = string.format(
+                    "%.0f,%.0f | LineTo %.0f,%.0f | ArcTo %.0f,%.0f,%.0f,%.0f,0,%d,0 | LineTo %.0f,%.0f",
+                    cx, cy, sx, sy, ex, ey, r, r, largeArc, cx, cy)
+
+                SKIN:Bang('!SetOption', pieMeter, pathName, pathDef)
+                local redArc = "Path " .. pathName .. " | Fill Color 255,0,0,240 | StrokeWidth 0"
+                SKIN:Bang('!SetOption', pieMeter, 'Shape2', redArc)
                 nextShape = 3
             end
 
