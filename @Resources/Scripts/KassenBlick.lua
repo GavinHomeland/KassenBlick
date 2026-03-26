@@ -33,7 +33,8 @@ local COLOR = {
     GREY   = "128,128,128,255",
     YELLOW = "255,255,0,255",
     RED    = "255,0,0,255",
-    GREEN  = "0,255,0,255",
+    GREEN       = "0,255,0,255",
+    GREEN_SAVE  = "17,228,17,155",
     BLACK  = "0,0,0,255",
     WHITE  = "255,255,255,255"
 }
@@ -623,7 +624,7 @@ function ApplySavings()
                 if fillH > 0 then
                     SKIN:Bang('!SetOption', sqMeter, 'Shape3', string.format(
                         'Rectangle 1,%d,%d,%d | Fill Color %s | StrokeWidth 0',
-                        sqH - fillH, SAVE_W - 2, fillH, COLOR.GREEN))
+                        sqH - fillH, SAVE_W - 2, fillH, COLOR.GREEN_SAVE))
                 else
                     SKIN:Bang('!SetOption', sqMeter, 'Shape3', '')
                 end
@@ -632,7 +633,7 @@ function ApplySavings()
                 if fillH > 0 then
                     SKIN:Bang('!SetOption', sqMeter, 'Shape2', string.format(
                         'Rectangle 1,%d,%d,%d | Fill Color %s | StrokeWidth 0',
-                        sqH - fillH, SAVE_W - 2, fillH, COLOR.GREEN))
+                        sqH - fillH, SAVE_W - 2, fillH, COLOR.GREEN_SAVE))
                 else
                     SKIN:Bang('!SetOption', sqMeter, 'Shape2', '')
                 end
