@@ -35,23 +35,24 @@ TempBucketsCSV=..\tempdata\Buckets.csv
 ; GRID POSITIONING
 ; ====================
 GridTopY=62
-RowHeight=31
-DotOffsetY=4
+RowHeight=37
+DotOffsetY=7
 Col1X=10
 Col2X=96
 Col3X=182
 Col4X=268
 Col5X=354
-DotToTextGap=17
+DotToTextGap=32
+LabelOffsetY=12
 
 ; ====================
 ; BUCKET PIE POSITIONING
 ; ====================
-BucketTopY=225
-BucketLabelY=330
+BucketTopY=245
+BucketLabelY=350
 
 ; ====================
 ; SAVINGS SQUARE POSITIONING
 ; ====================
-SaveTopY=385
-SaveLabelY=495
+SaveTopY=405
+SaveLabelY=515

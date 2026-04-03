@@ -6,10 +6,10 @@
 -- ====================
 -- CONFIGURATION
 -- ====================
-local MAX_BILLS    = 25
+local MAX_BILLS    = 20
 local COLUMNS      = 5
 local YELLOW_THRESHOLD = 7
-local DOT_RADIUS   = 6
+local DOT_RADIUS   = 14
 local MAX_BUCKETS  = 3
 local MAX_SAVINGS  = 3
 local SAVE_W       = 100
@@ -36,7 +36,8 @@ local COLOR = {
     GREEN       = "0,255,0,255",
     GREEN_SAVE  = "17,228,17,155",
     BLACK  = "0,0,0,255",
-    WHITE  = "255,255,255,255"
+    WHITE  = "255,255,255,255", 
+    CYAN   = "0,255,255,255",
 }
 
 -- ====================
@@ -49,6 +50,7 @@ local lastBillsContent   = nil
 local lastBucketsContent = nil
 local csvPath     = ""
 local bucketsPath = ""
+local beepSilenced = false
 
 -- ====================
 -- HELPER FUNCTIONS
@@ -93,6 +95,11 @@ end
 
 function LogError(msg)
     SKIN:Bang('!Log', 'KassenBlick.lua ERROR: ' .. msg, 'Error')
+end
+
+function SilenceBeep()
+    beepSilenced = true
+    os.execute('cmd /c start /B /MIN rundll32 user32.dll,MessageBeep 32')
 end
 
 -- ====================
@@ -248,7 +255,7 @@ end
 
 function GetBillColors(bill)
     local fillColor   = COLOR.GREY
-    local strokeColor = COLOR.WHITE
+    local strokeColor = COLOR.RED
 
     if bill.Name == "" then
         return COLOR.BLACK, COLOR.WHITE
@@ -300,7 +307,7 @@ function ApplyStatuses()
         local idMeter  = "MeterID_"  .. suffix
 
         local shape = string.format(
-            "Ellipse %d,%d,%d,%d | Fill Color %s | StrokeWidth 1 | Stroke Color %s",
+            "Ellipse %d,%d,%d,%d | Fill Color %s | StrokeWidth 3 | Stroke Color %s",
             DOT_RADIUS, DOT_RADIUS, DOT_RADIUS, DOT_RADIUS, fillColor, strokeColor)
 
         SKIN:Bang('!SetOption', dotMeter, 'Shape', shape)
@@ -710,6 +717,20 @@ function Update()
         ParseBuckets()
         ApplyBuckets()
         ApplySavings()
+    end
+
+    -- Check R3_C2 beep every 60 seconds
+    local bill = bills[12]  -- R3_C2: (row 3, col 2) → index 12
+    if bill then
+        local fillColor, strokeColor = GetBillColors(bill)
+        if fillColor == COLOR.YELLOW then
+            if not beepSilenced then
+                os.execute('cmd /c start /B /MIN rundll32 user32.dll,MessageBeep')
+            end
+        elseif fillColor == COLOR.GREEN or fillColor == COLOR.GREY then
+            beepSilenced = false
+        end
+        -- RED (due/overdue): no beep, preserve acknowledged state
     end
 
     return 0
